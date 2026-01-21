@@ -1,8 +1,16 @@
 mod lastfm_helper;
 
 use anyhow::{Context, Result};
-use tokio::time::{Duration, sleep};
 use ytmusicapi::{BrowserAuth, YTMusicClient};
+
+const CANONICAL_RULES: &[(&str, &str)] = &[("black metal", "metal"),
+                                           ("death metal", "metal"),
+                                           ("punkrock", "punkrock"),
+                                           ("hiphop", "hiphop"),
+                                           ("Hip-Hop", "hiphop"),
+                                           ("hard rock", "hard rock"),
+                                           ("hardcore", "hardcore"),
+                                           ("psychedelic rock", "psychedelic rock")];
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -50,7 +58,7 @@ async fn main() -> Result<()> {
         }
 
         let lastfm_genres = match lastfm_helper::fetch_genres(&title, artist_name).await {
-            Ok(genres) if !genres.is_empty() => genres.join(", "),
+            Ok(genres) if !genres.is_empty() => canonicalize_genres(genres).join(", "),
             Ok(_) => String::new(),
             Err(err) => {
                 eprintln!(
@@ -67,8 +75,25 @@ async fn main() -> Result<()> {
         );
 
         // Be kind to external APIs: avoid hammering with rapid requests.
-        sleep(Duration::from_secs(2)).await;
+        //sleep(Duration::from_secs(2)).await;
     }
 
     Ok(())
+}
+
+fn canonicalize_genres(tags: Vec<String>) -> Vec<String> {
+    if tags.is_empty() {
+        return tags;
+    }
+
+    let lowered: Vec<String> = tags.iter().map(|t| t.to_lowercase()).collect();
+
+    for (pattern, canonical) in CANONICAL_RULES {
+        let needle = pattern.to_lowercase();
+        if lowered.iter().any(|t| t.contains(&needle)) {
+            return vec![(*canonical).to_string()];
+        }
+    }
+
+    tags
 }
