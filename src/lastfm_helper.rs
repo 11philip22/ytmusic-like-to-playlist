@@ -4,7 +4,6 @@ use serde::Deserialize;
 
 const USER_AGENT: &str = "ytmusic-like-to-playlist/0.1 (contact@example.com)"; // replace with your contact
 const LASTFM_ENDPOINT: &str = "https://ws.audioscrobbler.com/2.0/";
-const LASTFM_API_KEY_ENV: &str = "LASTFM_API_KEY";
 const TOP_TAG_LIMIT: usize = 20;
 
 #[derive(Debug, Deserialize)]
@@ -73,10 +72,7 @@ where
     Ok(count)
 }
 
-pub async fn fetch_genres(title: &str, artist: &str) -> Result<Vec<String>> {
-    let api_key = std::env::var(LASTFM_API_KEY_ENV)
-        .context("Set LASTFM_API_KEY to enable Last.fm lookups")?;
-
+pub async fn fetch_genres(api_key: &str, title: &str, artist: &str) -> Result<Vec<String>> {
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .build()
