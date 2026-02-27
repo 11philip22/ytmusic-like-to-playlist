@@ -1,0 +1,21 @@
+{
+  "canonical_rules": [
+    ["black metal", "metal"],
+    ["death metal", "metal"],
+    ["punkrock", "punkrock"],
+    ["hiphop", "hiphop"],
+    ["hip-hop", "hiphop"],
+    ["hard rock", "hard rock"],
+    ["hardcore", "hardcore"],
+    ["psychedelic rock", "psychedelic rock"],
+    ["new wave", "new wave"],
+    ["post-punk", "post punk"],
+    ["psychedelic trance", "psychedelic trance"],
+    ["Soundtrack", "soundtrack"]
+  ],
+  "genre_overrides": {
+    "Peptalk": "hiphop",
+    "Filthyland (China) - Plaguecraft of Yperite": "metal",
+    "How Can Somebody": "hardcore"
+  }
+}

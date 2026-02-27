@@ -2,28 +2,32 @@ mod lastfm_helper;
 
 use anyhow::{Context, Result};
 use lastfm_helper::fetch_genres;
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use ytmusicapi::{BrowserAuth, YTMusicClient};
 
+#[derive(Debug, Deserialize)]
+struct GenreConfig {
+    canonical_rules: Vec<(String, String)>,
+    genre_overrides: HashMap<String, String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config_file = "auth.json";
-    let rules_file = "canonical_rules.json";
-    let overrides_file = "genre_overrides.json";
+    let auth_file = "auth.json";
+    let config_file = "config.json";
 
-    let data = read_to_string(config_file)?;
+    let data = read_to_string(auth_file)?;
     let json: Value = serde_json::from_str(&data)?;
     let api_key = json["lastfm_api_key"].as_str().unwrap();
 
-    let canonical_rules =
-        load_canonical_rules(rules_file).context("Failed to load canonical rules")?;
-    let genre_overrides =
-        load_genre_overrides(overrides_file).context("Failed to load genre overrides")?;
+    let config =
+        load_config(config_file).context("Failed to load genre config")?;
 
     println!("Authenticating with YouTube Music...");
-    let auth = BrowserAuth::from_file(config_file).context("Failed to load headers.json")?;
+    let auth = BrowserAuth::from_file(auth_file).context("Failed to load headers.json")?;
     let client = YTMusicClient::builder().with_browser_auth(auth).build()?;
 
     println!("Fetching Liked Songs...");
@@ -49,12 +53,12 @@ async fn main() -> Result<()> {
             .map(|a| a.name.as_str())
             .unwrap_or("Unknown");
 
-        let lastfm_genres = if let Some(override_genre) = genre_overrides.get(&title) {
+        let lastfm_genres = if let Some(override_genre) = config.genre_overrides.get(&title) {
             override_genre.clone()
         } else {
             match fetch_genres(api_key, &title, artist_name).await {
                 Ok(genres) if !genres.is_empty() => {
-                    canonicalize_genres(genres, &canonical_rules).join(", ")
+                    canonicalize_genres(genres, &config.canonical_rules).join(", ")
                 }
                 Ok(_) => String::new(),
                 Err(err) => {
@@ -93,16 +97,9 @@ fn canonicalize_genres(tags: Vec<String>, rules: &[(String, String)]) -> Vec<Str
     tags
 }
 
-fn load_canonical_rules(path: &str) -> Result<Vec<(String, String)>> {
+fn load_config(path: &str) -> Result<GenreConfig> {
     let data = read_to_string(path).with_context(|| format!("Failed to read {path}"))?;
-    let rules: Vec<(String, String)> =
+    let config: GenreConfig =
         serde_json::from_str(&data).with_context(|| format!("Invalid JSON in {path}"))?;
-    Ok(rules)
-}
-
-fn load_genre_overrides(path: &str) -> Result<HashMap<String, String>> {
-    let data = read_to_string(path).with_context(|| format!("Failed to read {path}"))?;
-    let overrides: HashMap<String, String> =
-        serde_json::from_str(&data).with_context(|| format!("Invalid JSON in {path}"))?;
-    Ok(overrides)
+    Ok(config)
 }
