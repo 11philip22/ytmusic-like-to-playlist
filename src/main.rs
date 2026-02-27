@@ -1,7 +1,7 @@
 mod lastfm_helper;
 
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use lastfm_helper::fetch_genres;
 use serde::Deserialize;
 use serde_json::Value;
@@ -18,28 +18,44 @@ struct Config {
 #[derive(Debug, Parser)]
 #[command(about = "Sync liked songs with genres")]
 struct Cli {
-    /// Path to auth.json (Last.fm key + YTM headers)
-    #[arg(long, default_value = "auth.json")]
-    auth: String,
-    /// Path to config.json (canonical rules + overrides)
-    #[arg(long, default_value = "config.json")]
-    config: String,
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Run the sync flow
+    Run {
+        /// Path to auth.json (Last.fm key + YTM headers)
+        #[arg(long, default_value = "auth.json")]
+        auth: String,
+        /// Path to config.json (canonical rules + overrides)
+        #[arg(long, default_value = "config.json")]
+        config: String,
+    },
+    /// Display loaded config details
+    Display {
+        /// Path to auth.json (Last.fm key + YTM headers)
+        #[arg(long, default_value = "auth.json")]
+        auth: String,
+        /// Path to config.json (canonical rules + overrides)
+        #[arg(long, default_value = "config.json")]
+        config: String,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Cli::parse();
-    let auth_file = args.auth;
-    let config_file = args.config;
+    match args.command {
+        Command::Run { auth, config } => run(auth, config),
+        Command::Display { auth, config } => display(auth, config).await,
+    }
+}
 
-    // get lastfm api key from auth
-    let data = read_to_string(&auth_file)?;
-    let json: Value = serde_json::from_str(&data)?;
-    let api_key = json["lastfm_api_key"].as_str().unwrap();
-
-    // load config
-    let config =
-        load_config(&config_file).context("Failed to load genre config")?;
+async fn display(auth_file: String, config_file: String) -> Result<()> {
+    let api_key = load_lastfm_api_key(&auth_file)?;
+    let config = load_config(&config_file).context("Failed to load genre config")?;
 
     // login to youtube api
     println!("Authenticating with YouTube Music...");
@@ -72,7 +88,7 @@ async fn main() -> Result<()> {
         let lastfm_genres = if let Some(override_genre) = config.genre_overrides.get(&title) {
             override_genre.clone()
         } else {
-            match fetch_genres(api_key, &title, artist_name).await {
+            match fetch_genres(&api_key, &title, artist_name).await {
                 Ok(genres) if !genres.is_empty() => {
                     canonicalize_genres(genres, &config.canonical_rules).join(", ")
                 }
@@ -93,6 +109,10 @@ async fn main() -> Result<()> {
         );
     }
 
+    Ok(())
+}
+
+fn run(auth_file: String, config_file: String) -> Result<()> {
     Ok(())
 }
 
@@ -118,4 +138,14 @@ fn load_config(path: &str) -> Result<Config> {
     let config: Config =
         serde_json::from_str(&data).with_context(|| format!("Invalid JSON in {path}"))?;
     Ok(config)
+}
+
+fn load_lastfm_api_key(path: &str) -> Result<String> {
+    let data = read_to_string(path).with_context(|| format!("Failed to read {path}"))?;
+    let json: Value =
+        serde_json::from_str(&data).with_context(|| format!("Invalid JSON in {path}"))?;
+    let api_key = json["lastfm_api_key"]
+        .as_str()
+        .context("Missing lastfm_api_key")?;
+    Ok(api_key.to_string())
 }
