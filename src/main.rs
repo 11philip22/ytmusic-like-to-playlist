@@ -37,6 +37,8 @@ pub struct YtMusicGenreSyncer {
     yt_client: YTMusicClient,
     /// All tracks from playlists in playlist_rules (flat list).
     pub playlist_songs: Vec<PlaylistTrack>,
+    /// Genre -> playlist ID (for adding songs). Populated by load_playlist_songs.
+    genre_playlist_ids: HashMap<String, String>,
 }
 
 impl YtMusicGenreSyncer {
@@ -48,21 +50,18 @@ impl YtMusicGenreSyncer {
             .context("Missing lastfm_api_key in auth")?
             .to_string();
 
-        let config =
-            load_config(config_path).context("Failed to load genre config")?;
+        let config = load_config(config_path).context("Failed to load genre config")?;
 
         println!("Authenticating with YouTube Music...");
-        let auth =
-            BrowserAuth::from_file(auth_path).context("Failed to load headers.json")?;
-        let yt_client = YTMusicClient::builder()
-            .with_browser_auth(auth)
-            .build()?;
+        let auth = BrowserAuth::from_file(auth_path).context("Failed to load headers.json")?;
+        let yt_client = YTMusicClient::builder().with_browser_auth(auth).build()?;
 
         Ok(Self {
             config,
             lastfm_api_key,
             yt_client,
             playlist_songs: Vec::new(),
+            genre_playlist_ids: HashMap::new(),
         })
     }
 
@@ -88,32 +87,27 @@ impl YtMusicGenreSyncer {
                 continue;
             }
 
-            let lastfm_genres =
-                if let Some(override_genre) = self.config.genre_overrides.get(&title) {
-                    override_genre.clone()
-                } else {
-                    match fetch_genres(
-                        &self.lastfm_api_key,
-                        &title,
-                        artist_name,
-                    )
-                    .await
-                    {
-                        Ok(genres) if !genres.is_empty() => {
-                            self.canonicalize_genres(genres).join(", ")
-                        }
-                        Ok(_) => String::new(),
-                        Err(err) => {
-                            eprintln!(
-                                "Last.fm lookup failed for {} - {}: {}",
-                                artist_name, title, err
-                            );
-                            String::new()
-                        }
+            let lastfm_genres = if let Some(override_genre) =
+                self.config.genre_overrides.get(&title)
+            {
+                override_genre.clone()
+            } else {
+                match fetch_genres(&self.lastfm_api_key, &title, artist_name).await {
+                    Ok(genres) if !genres.is_empty() => self.canonicalize_genres(genres).join(", "),
+                    Ok(_) => String::new(),
+                    Err(err) => {
+                        eprintln!(
+                            "Last.fm lookup failed for {} - {}: {}",
+                            artist_name, title, err
+                        );
+                        String::new()
                     }
-                };
+                }
+            };
 
-            println!("{} - {}: {}", artist_name, title, lastfm_genres);
+            //println!("{} - {}: {}", artist_name, title, lastfm_genres);
+            self.add_song_to_genre_playlist(&title, &lastfm_genres, track.video_id.as_deref())
+                .await?;
         }
 
         Ok(())
@@ -175,16 +169,47 @@ impl YtMusicGenreSyncer {
     }
 
     /// Fetch all songs from each playlist in `playlist_rules` and store them in
-    /// `playlist_songs` as a single flat list.
+    /// `playlist_songs` as a single flat list. Also populates `genre_playlist_ids`.
     pub async fn load_playlist_songs(&mut self) -> Result<()> {
-        for (_genre, playlist_name) in &self.config.playlist_rules {
+        for (genre, playlist_name) in &self.config.playlist_rules {
             println!("Fetching playlist '{}'...", playlist_name);
             let playlist = self.get_playlist_songs_by_name(playlist_name).await?;
+            self.genre_playlist_ids
+                .insert(genre.clone(), playlist.id.clone());
             let count = playlist.tracks.len();
             self.playlist_songs.extend(playlist.tracks);
             println!("Fetched {} songs for playlist '{}'", count, playlist_name);
         }
         Ok(())
+    }
+
+    /// If the genre has a playlist mapped, adds the song to that playlist.
+    /// Returns Ok(true) if added, Ok(false) if no playlist for genre, Err if the add fails.
+    /// Requires `video_id` to perform the add; returns Err if video_id is None.
+    pub async fn add_song_to_genre_playlist(
+        &self,
+        title: &str,
+        detected_genre: &str,
+        video_id: Option<&str>,
+    ) -> Result<bool> {
+        let Some(playlist_id) = self.genre_playlist_ids.get(detected_genre) else {
+            return Ok(false);
+        };
+        let Some(vid) = video_id.filter(|s| !s.is_empty()) else {
+            anyhow::bail!("Cannot add '{}' to playlist: track has no video_id", title);
+        };
+        self.yt_client
+            .add_playlist_items(playlist_id, &[vid.to_string()], false)
+            .await
+            .context("Failed to add song to playlist")?;
+        let playlist_name = self
+            .config
+            .playlist_rules
+            .get(detected_genre)
+            .map(|s| s.as_str())
+            .unwrap_or(detected_genre);
+        println!("Added '{}' to '{}' playlist", title, playlist_name);
+        Ok(true)
     }
 }
 
