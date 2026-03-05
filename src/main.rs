@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::read_to_string;
-use ytmusicapi::{BrowserAuth, YTMusicClient};
+use ytmusicapi::{BrowserAuth, Playlist, YTMusicClient};
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -70,12 +70,6 @@ impl YtMusicGenreSyncer {
             liked_playlist.tracks.len()
         );
 
-        println!(
-            "{:<35} | {:<30} | {}",
-            "Artist", "Last.fm Genres", "Title"
-        );
-        println!("{:-<35}-+-{:-<30}-+-{:-<30}", "", "", "");
-
         for track in liked_playlist.tracks {
             let title = track.title.clone().unwrap_or_default();
             let artist_name = track
@@ -101,7 +95,7 @@ impl YtMusicGenreSyncer {
                         Ok(_) => String::new(),
                         Err(err) => {
                             eprintln!(
-                                "Last.fm lookup failed for '{} - {}': {}",
+                                "Last.fm lookup failed for {} - {}: {}",
                                 artist_name, title, err
                             );
                             String::new()
@@ -109,10 +103,7 @@ impl YtMusicGenreSyncer {
                     }
                 };
 
-            println!(
-                "{:<35} | {:<30} | {}",
-                artist_name, lastfm_genres, title
-            );
+            println!("{} - {}: {}", artist_name, title, lastfm_genres);
         }
 
         Ok(())
@@ -134,6 +125,30 @@ impl YtMusicGenreSyncer {
         }
 
         tags
+    }
+
+    /// Get all songs from a playlist by name. Searches the user's library playlists
+    /// for an exact (case-insensitive) match and returns the full playlist with tracks.
+    pub async fn get_playlist_songs_by_name(&self, name: &str) -> Result<Playlist> {
+        let playlists = self
+            .yt_client
+            .get_library_playlists(None)
+            .await
+            .context("Failed to fetch library playlists")?;
+
+        let name_lower = name.to_lowercase();
+        let summary = playlists
+            .iter()
+            .find(|pl| pl.title.to_lowercase() == name_lower)
+            .with_context(|| format!("Playlist '{}' not found in library", name))?;
+
+        let playlist = self
+            .yt_client
+            .get_playlist(&summary.playlist_id, None)
+            .await
+            .with_context(|| format!("Failed to fetch playlist '{}'", name))?;
+
+        Ok(playlist)
     }
 }
 
