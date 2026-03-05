@@ -2,6 +2,7 @@
   "canonical_rules": [
     ["black metal", "metal"],
     ["death metal", "metal"],
+    ["thrash metal", "metal"],
     ["punkrock", "punkrock"],
     ["hiphop", "hiphop"],
     ["hip-hop", "hiphop"],
@@ -16,6 +17,27 @@
   "genre_overrides": {
     "Peptalk": "hiphop",
     "Filthyland (China) - Plaguecraft of Yperite": "metal",
-    "How Can Somebody": "hardcore"
+    "How Can Somebody": "hardcore",
+    "Naglfar - Devoured By Naglfar": "Naglfar - Devoured By Naglfar",
+    "Yellow Queen": "Yellow Queen",
+    "Satanic Warmaster - The Vampiric Tyrant": "metal",
+    "Gorgoroth - Unchain My Heart!!!": "metal",
+    "Openbare Ruimte": "hiphop",
+    "Peste Noire - Phalènes Et Pestilence - Salvatrice Averse": "metal",
+    "Peste Noire - La Sanie Des Siècles - Panégyrique De La Dégénérescence (Full Album)": "metal",
+    "Executor": "Drum and bass",
+    "Scarif": "Drum and bass",
+    "Immersion (feat. Belle Doron)": "Drum and bass",
+    "Seppuku": "Drum and bass",
+    "Dawn of a Dark Day (feat. Foreign Beggars)": "Drum and bass",
+    "Ik Schiet II": "hiphop",
+    "Притоптать": "Drum and bass",
+    "Amaranth": "metal",
+    "Search For The Divine [Full Album]": "goa trance"
+  },
+  "playlist_rules": {
+    "metal": "metal shit",
+    "hardcore": "Harde shit",
+    "hiphop": "gangsta shit"
   }
 }
