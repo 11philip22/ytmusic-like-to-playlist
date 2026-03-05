@@ -35,7 +35,8 @@ pub struct YtMusicGenreSyncer {
     config: Config,
     lastfm_api_key: String,
     yt_client: YTMusicClient,
-    pub playlist_songs: HashMap<String, Vec<PlaylistTrack>>,
+    /// All tracks from playlists in playlist_rules (flat list).
+    pub playlist_songs: Vec<PlaylistTrack>,
 }
 
 impl YtMusicGenreSyncer {
@@ -61,7 +62,7 @@ impl YtMusicGenreSyncer {
             config,
             lastfm_api_key,
             yt_client,
-            playlist_songs: HashMap::new(),
+            playlist_songs: Vec::new(),
         })
     }
 
@@ -81,6 +82,11 @@ impl YtMusicGenreSyncer {
                 .first()
                 .map(|a| a.name.as_str())
                 .unwrap_or("Unknown");
+
+            if self.is_song_in_any_playlist(&title) {
+                //println!("{} - {}: (already in playlist)", artist_name, title);
+                continue;
+            }
 
             let lastfm_genres =
                 if let Some(override_genre) = self.config.genre_overrides.get(&title) {
@@ -155,16 +161,27 @@ impl YtMusicGenreSyncer {
         Ok(playlist)
     }
 
-    /// Fetch all songs for each playlist in `playlist_rules` and store them in
-    /// `playlist_songs`. Keys are playlist names, values are
-    /// the tracks from the corresponding YTM playlist.
+    /// Returns true if the song (by title) is in any of the playlists from
+    /// `playlist_rules`. Requires `load_playlist_songs` to have been called first.
+    pub fn is_song_in_any_playlist(&self, song_title: &str) -> bool {
+        let title_lower = song_title.to_lowercase();
+        self.playlist_songs.iter().any(|track| {
+            track
+                .title
+                .as_ref()
+                .map(|t| t.to_lowercase() == title_lower)
+                .unwrap_or(false)
+        })
+    }
+
+    /// Fetch all songs from each playlist in `playlist_rules` and store them in
+    /// `playlist_songs` as a single flat list.
     pub async fn load_playlist_songs(&mut self) -> Result<()> {
         for (_genre, playlist_name) in &self.config.playlist_rules {
             println!("Fetching playlist '{}'...", playlist_name);
             let playlist = self.get_playlist_songs_by_name(playlist_name).await?;
             let count = playlist.tracks.len();
-            self.playlist_songs
-                .insert(playlist_name.clone(), playlist.tracks);
+            self.playlist_songs.extend(playlist.tracks);
             println!("Fetched {} songs for playlist '{}'", count, playlist_name);
         }
         Ok(())
