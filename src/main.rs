@@ -7,7 +7,30 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::read_to_string;
+use unicode_width::UnicodeWidthChar;
 use ytmusicapi::{BrowserAuth, Playlist, PlaylistTrack, YTMusicClient};
+
+fn trunc_pad(s: &str, max: usize) -> String {
+    let mut result = String::new();
+    let mut width = 0;
+
+    for c in s.chars() {
+        let cw = UnicodeWidthChar::width(c).unwrap_or(0);
+        if width + cw > max.saturating_sub(1) {
+            result.push('…');
+            width += 1;
+            break;
+        }
+        result.push(c);
+        width += cw;
+    }
+
+    // pad to exactly `max` display columns
+    if width < max {
+        result.push_str(&" ".repeat(max - width));
+    }
+    result
+}
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -29,6 +52,9 @@ struct Cli {
     /// Max number of liked songs to process (omit for no limit)
     #[arg(long)]
     limit: Option<usize>,
+    /// Only display liked songs with Last.fm genres (no sync)
+    #[arg(long)]
+    display: bool,
 }
 
 pub struct YtMusicGenreSyncer {
@@ -108,6 +134,54 @@ impl YtMusicGenreSyncer {
             //println!("{} - {}: {}", artist_name, title, lastfm_genres);
             self.add_song_to_genre_playlist(&title, &lastfm_genres, track.video_id.as_deref())
                 .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Display all liked songs with their Last.fm genre (canonical rules + overrides).
+    /// No playlist loading or adding.
+    pub async fn display(&self, limit: Option<u32>) -> Result<()> {
+        println!("Fetching Liked Songs...");
+        let liked_playlist = self.yt_client.get_liked_songs(limit).await?;
+
+        println!(
+            "Found {} songs. Fetching genres...\n",
+            liked_playlist.tracks.len()
+        );
+        println!("{:<30} | {:<30} | {:<30}", "Artist", "Genre", "Title");
+        println!("{:-<30}-+-{:-<30}-+-{:-<30}", "", "", "");
+
+        for track in liked_playlist.tracks {
+            let title = track.title.clone().unwrap_or_default();
+            let artist_name = track
+                .artists
+                .first()
+                .map(|a| a.name.as_str())
+                .unwrap_or("Unknown");
+
+            let genre = if let Some(override_genre) = self.config.genre_overrides.get(&title) {
+                override_genre.clone()
+            } else {
+                match fetch_genres(&self.lastfm_api_key, &title, artist_name).await {
+                    Ok(genres) if !genres.is_empty() => self.canonicalize_genres(genres).join(", "),
+                    Ok(_) => String::new(),
+                    Err(err) => {
+                        eprintln!(
+                            "Last.fm lookup failed for {} - {}: {}",
+                            artist_name, title, err
+                        );
+                        String::new()
+                    }
+                }
+            };
+
+            println!(
+                "{} | {} | {}",
+                trunc_pad(artist_name, 30),
+                trunc_pad(&genre, 30),
+                trunc_pad(&title, 30),
+            );
         }
 
         Ok(())
@@ -224,7 +298,12 @@ fn load_config(path: &str) -> Result<Config> {
 async fn main() -> Result<()> {
     let args = Cli::parse();
     let mut syncer = YtMusicGenreSyncer::new(&args.auth, &args.config)?;
-    syncer.load_playlist_songs().await?;
-    syncer.run(args.limit.map(|l| l as u32)).await?;
+
+    if args.display {
+        syncer.display(args.limit.map(|l| l as u32)).await?;
+    } else {
+        syncer.load_playlist_songs().await?;
+        syncer.run(args.limit.map(|l| l as u32)).await?;
+    }
     Ok(())
 }

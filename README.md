@@ -85,21 +85,31 @@ Copy `config.json.example` to get started.
 ## Usage
 <a id="usage"></a>
 
+**Sync** (adds songs to genre playlists):
+
 ```bash
 cargo run
 ```
 
-Or with options:
+**Display only** (show liked songs with Last.fm genres, no sync):
+
+```bash
+cargo run -- --display
+```
+
+With options:
 
 ```bash
 cargo run -- --auth auth.json --config config.json --limit 50
+cargo run -- --display --limit 20
 ```
 
-| Flag    | Default     | Description                    |
-|---------|-------------|--------------------------------|
-| `--auth`   | `auth.json`   | Path to auth file              |
-| `--config` | `config.json` | Path to config file            |
-| `--limit`  | (none)        | Max liked songs to process     |
+| Flag       | Default     | Description                                  |
+|------------|-------------|----------------------------------------------|
+| `--auth`   | `auth.json` | Path to auth file                            |
+| `--config` | `config.json` | Path to config file                        |
+| `--limit`  | (none)      | Max liked songs to process                   |
+| `--display`| `false`     | Only display liked songs with genres (no sync) |
 
 ## Project structure
 <a id="project-structure"></a>
