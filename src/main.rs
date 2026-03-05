@@ -7,12 +7,14 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::read_to_string;
-use ytmusicapi::{BrowserAuth, Playlist, YTMusicClient};
+use ytmusicapi::{BrowserAuth, Playlist, PlaylistTrack, YTMusicClient};
 
 #[derive(Debug, Deserialize)]
 struct Config {
     canonical_rules: Vec<(String, String)>,
     genre_overrides: HashMap<String, String>,
+    #[serde(default)]
+    playlist_rules: HashMap<String, String>,
 }
 
 #[derive(Debug, Parser)]
@@ -33,6 +35,7 @@ pub struct YtMusicGenreSyncer {
     config: Config,
     lastfm_api_key: String,
     yt_client: YTMusicClient,
+    pub playlist_songs: HashMap<String, Vec<PlaylistTrack>>,
 }
 
 impl YtMusicGenreSyncer {
@@ -58,6 +61,7 @@ impl YtMusicGenreSyncer {
             config,
             lastfm_api_key,
             yt_client,
+            playlist_songs: HashMap::new(),
         })
     }
 
@@ -150,6 +154,21 @@ impl YtMusicGenreSyncer {
 
         Ok(playlist)
     }
+
+    /// Fetch all songs for each playlist in `playlist_rules` and store them in
+    /// `playlist_songs`. Keys are playlist names, values are
+    /// the tracks from the corresponding YTM playlist.
+    pub async fn load_playlist_songs(&mut self) -> Result<()> {
+        for (_genre, playlist_name) in &self.config.playlist_rules {
+            println!("Fetching playlist '{}'...", playlist_name);
+            let playlist = self.get_playlist_songs_by_name(playlist_name).await?;
+            let count = playlist.tracks.len();
+            self.playlist_songs
+                .insert(playlist_name.clone(), playlist.tracks);
+            println!("Fetched {} songs for playlist '{}'", count, playlist_name);
+        }
+        Ok(())
+    }
 }
 
 fn load_config(path: &str) -> Result<Config> {
@@ -162,7 +181,8 @@ fn load_config(path: &str) -> Result<Config> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Cli::parse();
-    let syncer = YtMusicGenreSyncer::new(&args.auth, &args.config)?;
+    let mut syncer = YtMusicGenreSyncer::new(&args.auth, &args.config)?;
+    syncer.load_playlist_songs().await?;
     syncer.run(args.limit.map(|l| l as u32)).await?;
     Ok(())
 }
