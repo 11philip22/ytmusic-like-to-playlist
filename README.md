@@ -6,7 +6,7 @@
   <a href="https://crates.io/crates/ytmusic-like-to-playlist"><img src="https://img.shields.io/badge/cargo_install-ytmusic--like--to--playlist-3B82F6?style=for-the-badge&logo=rust&logoColor=white" alt="cargo install"></a>
   <a href="https://music.youtube.com"><img src="https://img.shields.io/badge/YouTube_Music-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="YouTube Music"></a>
   <a href="https://www.last.fm/api"><img src="https://img.shields.io/badge/Last.fm_API-E40046?style=for-the-badge" alt="Last.fm API"></a>
-  <a href="https://github.com/woldp001/ytmusic-like-to-playlist/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-22C55E?style=for-the-badge" alt="PRs Welcome"></a>
+  <a href="https://github.com/11philip22/ytmusic-like-to-playlist/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-22C55E?style=for-the-badge" alt="PRs Welcome"></a>
 </p>
 
 <p align="center">

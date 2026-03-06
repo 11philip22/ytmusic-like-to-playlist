@@ -2,6 +2,10 @@
 name = "ytmusic-like-to-playlist"
 version = "0.1.0"
 edition = "2024"
+description = "Sync YouTube Music liked songs into genre-based playlists using Last.fm for genre detection"
+license = "MIT"
+categories = ["command-line-utilities", "api-bindings", "multimedia::audio"]
+keywords = ["youtube-music", "lastfm", "playlist", "music", "cli"]
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
