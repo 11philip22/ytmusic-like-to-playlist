@@ -182,6 +182,7 @@ impl YtMusicGenreSyncer {
                 trunc_pad(&genre, 30),
                 trunc_pad(&title, 30),
             );
+            // println!("{} - {}: {}", artist_name, title, genre);
         }
 
         Ok(())
