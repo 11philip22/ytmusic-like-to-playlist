@@ -2450,6 +2450,8 @@ dependencies = [
 [[package]]
 name = "ytmusicapi"
 version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4df75dfcadebb2edf53f21f5485c2a346e52ca9e2db9068dd91f06390a408b4"
 dependencies = [
  "async-stream",
  "chrono",
